@@ -138,10 +138,13 @@
     let pollTimer = null;
     let busy = false;
 
-    // --- Get sessionId from URL ---
+    // --- Get sessionId from URL or Telegram startapp ---
     function getSessionId() {
       const params = new URLSearchParams(window.location.search);
-      return params.get('s') || params.get('sessionId');
+      // Try URL param first, then Telegram Mini App startapp param
+      return params.get('s') || params.get('sessionId')
+        || (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param)
+        || null;
     }
 
     // --- API helpers ---
