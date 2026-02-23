@@ -1,4 +1,4 @@
-const { sessions, BOT_SECRET } = require('../../lib/store');
+const { sessions } = require('../../lib/store');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,8 +11,7 @@ module.exports = async function handler(req, res) {
   const session = sessions.get(id);
   if (!session) return res.status(404).json({ error: 'Session not found' });
 
-  const { botSecret, cards } = req.body || {};
-  if (botSecret !== BOT_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  const { cards } = req.body || {};
   if (!cards?.length) return res.status(400).json({ error: 'cards required' });
 
   session.cards.push(...cards);

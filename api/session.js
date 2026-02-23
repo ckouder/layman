@@ -1,4 +1,4 @@
-const { sessions, BOT_SECRET } = require('./lib/store');
+const { sessions } = require('./lib/store');
 const { randomUUID } = require('crypto');
 
 module.exports = async function handler(req, res) {
@@ -10,8 +10,7 @@ module.exports = async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { botSecret, userId, cards, callbackUrl, title, subtitle, targetCount, buttons, completeTitle } = req.body || {};
-  if (botSecret !== BOT_SECRET) return res.status(401).json({ error: 'Unauthorized' });
+  const { userId, cards, callbackUrl, title, subtitle, targetCount, buttons, completeTitle } = req.body || {};
   if (!cards?.length) return res.status(400).json({ error: 'cards required' });
 
   const sessionId = randomUUID().slice(0, 12);
