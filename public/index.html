@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Layman</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #ffffff; --text: #000000; --hint: #999999;
+      --card-bg: #f5f5f5; --positive: #34c759; --negative: #ff3b30;
+      --neutral: #007aff; --shadow: rgba(0,0,0,0.12);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .header { padding: 16px 20px 8px; text-align: center; }
+    .header h1 { font-size: 20px; font-weight: 700; }
+    .header .subtitle { font-size: 13px; color: var(--hint); margin-top: 4px; }
+    .progress-container { padding: 8px 20px; }
+    .progress-bar { height: 4px; background: var(--card-bg); border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--positive); border-radius: 2px; transition: width 0.4s ease; }
+    .progress-text { font-size: 12px; color: var(--hint); text-align: center; margin-top: 4px; }
+    .card-container {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 12px 20px; position: relative; overflow: hidden;
+    }
+    .card {
+      width: 100%; max-width: 360px; background: var(--card-bg);
+      border-radius: 20px; box-shadow: 0 8px 32px var(--shadow);
+      overflow: hidden; position: absolute;
+      transition: transform 0.4s ease, opacity 0.4s ease;
+      will-change: transform, opacity;
+    }
+    .card.active { position: relative; transform: scale(1); opacity: 1; }
+    .card.exit-left { transform: translateX(-120%) rotate(-15deg); opacity: 0; }
+    .card.exit-right { transform: translateX(120%) rotate(15deg); opacity: 0; }
+    .card.enter { transform: scale(0.95); opacity: 0; }
+    .card.dragging { transition: none; }
+    .card-image { width: 100%; height: 220px; object-fit: cover; background: var(--hint); }
+    .card-image-placeholder {
+      width: 100%; height: 220px; display: flex; align-items: center; justify-content: center;
+      font-size: 64px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .card-body { padding: 16px 20px; }
+    .card-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; line-height: 1.2; }
+    .card-desc { font-size: 14px; color: var(--hint); line-height: 1.5; margin-bottom: 12px; }
+    .card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag {
+      font-size: 12px; padding: 4px 10px; border-radius: 12px;
+      background: var(--bg); color: var(--hint); border: 1px solid rgba(0,0,0,0.08);
+    }
+    .buttons-container { padding: 12px 20px 24px; display: flex; gap: 12px; justify-content: center; }
+    .btn {
+      flex: 1; max-width: 160px; padding: 14px 24px; border: none; border-radius: 16px;
+      font-size: 16px; font-weight: 600; cursor: pointer;
+      transition: transform 0.15s ease; -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { transform: scale(0.95); }
+    .btn.positive { background: var(--positive); color: white; box-shadow: 0 4px 16px rgba(52,199,89,0.35); }
+    .btn.negative { background: var(--negative); color: white; box-shadow: 0 4px 16px rgba(255,59,48,0.35); }
+    .btn.neutral { background: var(--neutral); color: white; box-shadow: 0 4px 16px rgba(0,122,255,0.35); }
+    .selected-container { padding: 8px 20px 12px; min-height: 44px; }
+    .selected-pills { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+    .pill {
+      font-size: 11px; padding: 4px 10px; border-radius: 10px;
+      background: var(--positive); color: white; animation: popIn 0.3s ease;
+    }
+    @keyframes popIn { 0%{transform:scale(0);opacity:0} 50%{transform:scale(1.2)} 100%{transform:scale(1);opacity:1} }
+    .complete-screen {
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 40px 20px; flex: 1;
+    }
+    .complete-screen.active { display: flex; }
+    .complete-emoji { font-size: 64px; margin-bottom: 16px; }
+    .complete-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+    .complete-subtitle { font-size: 14px; color: var(--hint); margin-bottom: 24px; }
+    .complete-list { text-align: left; margin-bottom: 24px; }
+    .complete-list-item { font-size: 14px; padding: 4px 0; }
+    .loading { display: flex; align-items: center; justify-content: center; flex: 1; font-size: 18px; color: var(--hint); }
+    .error-msg { color: var(--negative); text-align: center; padding: 40px 20px; }
+  </style>
+</head>
+<body>
+  <div id="app-loading" class="loading">✨ Loading...</div>
+
+  <div id="app-main" style="display:none; flex-direction:column; flex:1;">
+    <div class="header">
+      <h1 id="app-title"></h1>
+      <div class="subtitle" id="app-subtitle"></div>
+    </div>
+    <div class="progress-container">
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      <div class="progress-text" id="progress-text"></div>
+    </div>
+    <div class="card-container" id="card-container"></div>
+    <div class="buttons-container" id="buttons-container"></div>
+    <div class="selected-container">
+      <div class="selected-pills" id="selected-pills"></div>
+    </div>
+  </div>
+
+  <div id="app-complete" class="complete-screen">
+    <div class="complete-emoji">🎉</div>
+    <div class="complete-title" id="complete-title">All Done!</div>
+    <div class="complete-subtitle" id="complete-subtitle"></div>
+    <div class="complete-list" id="complete-list"></div>
+    <div id="complete-close" style="display:none;">
+      <button class="btn neutral" onclick="window.Telegram?.WebApp?.close()">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready(); tg.expand();
+      const tp = tg.themeParams;
+      if (tp) {
+        if (tp.bg_color) document.documentElement.style.setProperty('--bg', tp.bg_color);
+        if (tp.text_color) document.documentElement.style.setProperty('--text', tp.text_color);
+        if (tp.hint_color) document.documentElement.style.setProperty('--hint', tp.hint_color);
+        if (tp.secondary_bg_color) document.documentElement.style.setProperty('--card-bg', tp.secondary_bg_color);
+        if (tp.button_color) document.documentElement.style.setProperty('--neutral', tp.button_color);
+      }
+    }
+
+    // --- State ---
+    const API = window.location.origin;
+    let session = null;
+    let sessionId = null;
+    let cards = [];
+    let currentIndex = 0;
+    let positiveItems = [];
+    let pollTimer = null;
+    let busy = false;
+
+    // --- Get sessionId from URL ---
+    function getSessionId() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('s') || params.get('sessionId');
+    }
+
+    // --- API helpers ---
+    async function fetchSession(id) {
+      const res = await fetch(`${API}/api/session/${id}`);
+      if (!res.ok) throw new Error('Session not found');
+      return res.json();
+    }
+
+    async function submitVote(cardId, vote) {
+      const res = await fetch(`${API}/api/session/${sessionId}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cardId, vote }),
+      });
+      return res.json();
+    }
+
+    // Poll for new cards (after extend)
+    function startPolling() {
+      if (pollTimer) return;
+      pollTimer = setInterval(async () => {
+        try {
+          const data = await fetchSession(sessionId);
+          if (data.cards.length > cards.length) {
+            const newCards = data.cards.slice(cards.length);
+            cards.push(...newCards);
+            // If we were waiting for cards, show next
+            if (document.querySelector('.waiting-cards')) {
+              document.querySelector('.waiting-cards')?.remove();
+              showCard(currentIndex);
+            }
+          }
+        } catch(e) {}
+      }, 2000);
+    }
+
+    function stopPolling() {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    }
+
+    // --- Init ---
+    async function init() {
+      sessionId = getSessionId();
+      if (!sessionId) {
+        // Fallback: try base64 data from hash (legacy mode)
+        return initLegacy();
+      }
+
+      try {
+        session = await fetchSession(sessionId);
+        cards = session.cards;
+        currentIndex = Object.keys(session.votes || {}).length;
+
+        // Restore positive items from existing votes
+        const positiveBtn = (session.buttons || []).find(b => b.style === 'positive');
+        const positiveValue = positiveBtn ? positiveBtn.value : 'nice';
+        for (const [cardId, vote] of Object.entries(session.votes || {})) {
+          if (vote === positiveValue) positiveItems.push(cardId);
+        }
+
+        document.getElementById('app-title').textContent = session.title || 'Recommendations';
+        document.getElementById('app-subtitle').textContent = session.subtitle || '';
+        setupButtons(session.buttons);
+        showCard(currentIndex);
+        document.getElementById('app-loading').style.display = 'none';
+        document.getElementById('app-main').style.display = 'flex';
+      } catch(e) {
+        document.getElementById('app-loading').innerHTML =
+          `<div class="error-msg">❌ ${e.message}</div>`;
+      }
+    }
+
+    // Legacy: base64 in hash (offline/no-backend mode)
+    function initLegacy() {
+      const hash = window.location.hash.slice(1);
+      const params = new URLSearchParams(hash);
+      const data = params.get('data');
+      if (!data) {
+        document.getElementById('app-loading').innerHTML =
+          '<div class="error-msg">❌ No session ID or data provided</div>';
+        return;
+      }
+      try {
+        const json = decodeURIComponent(atob(data.replace(/-/g,'+').replace(/_/g,'/')));
+        session = JSON.parse(json);
+        cards = session.items || [];
+        document.getElementById('app-title').textContent = session.title || 'Recommendations';
+        document.getElementById('app-subtitle').textContent = session.subtitle || '';
+        setupButtons(session.buttons);
+        showCard(0);
+        document.getElementById('app-loading').style.display = 'none';
+        document.getElementById('app-main').style.display = 'flex';
+      } catch(e) {
+        document.getElementById('app-loading').innerHTML =
+          '<div class="error-msg">❌ Invalid session data</div>';
+      }
+    }
+
+    function setupButtons(buttons) {
+      const container = document.getElementById('buttons-container');
+      container.innerHTML = '';
+      (buttons || [
+        { label: '👍 Nice', value: 'nice', style: 'positive' },
+        { label: '👎 No', value: 'no', style: 'negative' },
+      ]).forEach(btn => {
+        const el = document.createElement('button');
+        el.className = `btn ${btn.style}`;
+        el.textContent = btn.label;
+        el.addEventListener('click', () => handleChoice(btn.value, btn.style));
+        container.appendChild(el);
+      });
+    }
+
+    function showCard(index) {
+      currentIndex = index;
+      const container = document.getElementById('card-container');
+
+      // Check if we ran out of cards but more might come
+      if (index >= cards.length) {
+        // Check targetCount
+        if (session.targetCount && positiveItems.length >= session.targetCount) {
+          return onComplete();
+        }
+        // Maybe more cards coming via extend
+        startPolling();
+        container.innerHTML = '<div class="waiting-cards" style="color:var(--hint)">✨ Loading more...</div>';
+        // Timeout: if no new cards in 15s, complete
+        setTimeout(() => {
+          if (currentIndex >= cards.length) onComplete();
+        }, 15000);
+        return;
+      }
+
+      stopPolling();
+
+      const total = cards.length;
+      document.getElementById('progress-fill').style.width = `${(index / total) * 100}%`;
+      document.getElementById('progress-text').textContent = `${index + 1} / ${total}`;
+
+      const item = cards[index];
+      const card = document.createElement('div');
+      card.className = 'card enter';
+
+      let imageHtml;
+      if (item.image) {
+        imageHtml = `<img class="card-image" src="${item.image}" alt="" onerror="this.outerHTML='<div class=\\'card-image-placeholder\\'>🍽️</div>'">`;
+      } else {
+        imageHtml = `<div class="card-image-placeholder">${item.emoji || '✨'}</div>`;
+      }
+
+      card.innerHTML = `
+        ${imageHtml}
+        <div class="card-body">
+          <div class="card-title">${item.title}</div>
+          <div class="card-desc">${item.description || ''}</div>
+          <div class="card-tags">${(item.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+        </div>
+      `;
+
+      container.innerHTML = '';
+      container.appendChild(card);
+      setupSwipe(card);
+      requestAnimationFrame(() => requestAnimationFrame(() => { card.className = 'card active'; }));
+
+      // Start polling proactively when 5 cards remain
+      if (cards.length - index <= 5) startPolling();
+    }
+
+    function setupSwipe(card) {
+      let startX = 0, dx = 0, dragging = false;
+      card.addEventListener('touchstart', e => {
+        startX = e.touches[0].clientX; dragging = true;
+        card.classList.add('dragging');
+      }, { passive: true });
+      card.addEventListener('touchmove', e => {
+        if (!dragging) return;
+        dx = e.touches[0].clientX - startX;
+        card.style.transform = `translateX(${dx}px) rotate(${dx*0.05}deg)`;
+        card.style.opacity = Math.max(0.5, 1 - Math.abs(dx)/400);
+      }, { passive: true });
+      card.addEventListener('touchend', () => {
+        dragging = false; card.classList.remove('dragging');
+        if (Math.abs(dx) > 100) {
+          const btns = session.buttons || [];
+          const pos = btns.find(b => b.style === 'positive');
+          const neg = btns.find(b => b.style === 'negative');
+          if (dx > 100 && pos) handleChoice(pos.value, 'positive');
+          else if (dx < -100 && neg) handleChoice(neg.value, 'negative');
+          else { card.style.transform = ''; card.style.opacity = ''; }
+        } else { card.style.transform = ''; card.style.opacity = ''; }
+        dx = 0;
+      });
+    }
+
+    async function handleChoice(value, style) {
+      if (busy) return;
+      busy = true;
+
+      const item = cards[currentIndex];
+
+      if (style === 'positive') {
+        positiveItems.push(item.id);
+        const pills = document.getElementById('selected-pills');
+        const pill = document.createElement('span');
+        pill.className = 'pill';
+        pill.textContent = item.title.length > 20 ? item.title.substring(0,18)+'…' : item.title;
+        pills.appendChild(pill);
+      }
+
+      // Submit vote to API (if session-based)
+      if (sessionId) {
+        try { await submitVote(item.id, value); } catch(e) { console.error('Vote failed', e); }
+      }
+
+      const card = document.querySelector('.card.active');
+      if (card) card.className = `card ${style === 'positive' ? 'exit-right' : 'exit-left'}`;
+      setTimeout(() => { busy = false; showCard(currentIndex + 1); }, 350);
+    }
+
+    function onComplete() {
+      stopPolling();
+      const positiveBtn = (session.buttons || []).find(b => b.style === 'positive');
+      const positiveValue = positiveBtn ? positiveBtn.value : 'nice';
+
+      const result = {
+        sessionId: sessionId || 'local',
+        positiveItems,
+        positiveDetails: positiveItems.map(id => {
+          const item = cards.find(c => c.id === id);
+          return item ? { id: item.id, title: item.title } : null;
+        }).filter(Boolean),
+      };
+
+      document.getElementById('app-main').style.display = 'none';
+      const cs = document.getElementById('app-complete');
+      cs.classList.add('active');
+      document.getElementById('complete-title').textContent = session.completeTitle || 'All Done! 🎉';
+      document.getElementById('complete-subtitle').textContent =
+        `You selected ${positiveItems.length} item${positiveItems.length !== 1 ? 's' : ''}`;
+      document.getElementById('complete-list').innerHTML =
+        result.positiveDetails.map(d => `<div class="complete-list-item">✅ ${d.title}</div>`).join('');
+
+      if (tg) {
+        try { tg.sendData(JSON.stringify(result)); } catch(e) {}
+        document.getElementById('complete-close').style.display = 'block';
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

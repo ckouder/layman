@@ -1,0 +1,6 @@
+{
+  "name": "layman",
+  "version": "1.0.0",
+  "description": "A layman UI to handle recommendations from bots",
+  "private": true
+}
