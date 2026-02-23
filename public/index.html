@@ -18,8 +18,15 @@
       min-height: 100vh; overflow: hidden;
       display: flex; flex-direction: column;
     }
-    .header { padding: 16px 20px 8px; text-align: center; }
+    .header { padding: 16px 20px 8px; text-align: center; position: relative; }
     .header h1 { font-size: 20px; font-weight: 700; }
+    .exit-btn {
+      position: absolute; top: 14px; right: 16px;
+      background: none; border: none; font-size: 24px; color: var(--hint);
+      cursor: pointer; padding: 4px 8px; line-height: 1;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .exit-btn:active { opacity: 0.5; }
     .header .subtitle { font-size: 13px; color: var(--hint); margin-top: 4px; }
     .progress-container { padding: 8px 20px; }
     .progress-bar { height: 4px; background: var(--card-bg); border-radius: 2px; overflow: hidden; }
@@ -92,6 +99,7 @@
     <div class="header">
       <h1 id="app-title"></h1>
       <div class="subtitle" id="app-subtitle"></div>
+      <button class="exit-btn" onclick="onComplete()" title="Done">✕</button>
     </div>
     <div class="progress-container">
       <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
@@ -106,7 +114,7 @@
 
   <div id="app-complete" class="complete-screen">
     <div class="complete-emoji">🎉</div>
-    <div class="complete-title" id="complete-title">All Done!</div>
+    <div class="complete-title" id="complete-title">You've reached the end!</div>
     <div class="complete-subtitle" id="complete-subtitle"></div>
     <div class="complete-list" id="complete-list"></div>
     <div id="complete-close" style="display:none;">
@@ -265,18 +273,7 @@
 
       // Check if we ran out of cards but more might come
       if (index >= cards.length) {
-        // Check targetCount
-        if (session.targetCount && positiveItems.length >= session.targetCount) {
-          return onComplete();
-        }
-        // Maybe more cards coming via extend
-        startPolling();
-        container.innerHTML = '<div class="waiting-cards" style="color:var(--hint)">✨ Loading more...</div>';
-        // Timeout: if no new cards in 15s, complete
-        setTimeout(() => {
-          if (currentIndex >= cards.length) onComplete();
-        }, 15000);
-        return;
+        return onComplete();
       }
 
       stopPolling();
@@ -382,7 +379,7 @@
       document.getElementById('app-main').style.display = 'none';
       const cs = document.getElementById('app-complete');
       cs.classList.add('active');
-      document.getElementById('complete-title').textContent = session.completeTitle || 'All Done! 🎉';
+      document.getElementById('complete-title').textContent = session.completeTitle || "You've reached the end! 🎉";
       document.getElementById('complete-subtitle').textContent =
         `You selected ${positiveItems.length} item${positiveItems.length !== 1 ? 's' : ''}`;
       document.getElementById('complete-list').innerHTML =
