@@ -1,15 +1,41 @@
-// In-memory session store (MVP)
-// TODO: Replace with Vercel KV for persistence across cold starts
+const { createClient } = require('redis');
 
-const sessions = new Map();
-const BOT_SECRET = process.env.BOT_SECRET || 'layman-default-secret';
+const REDIS_URL = process.env.REDIS_URL;
+const SESSION_TTL = 600; // 10 minutes after last access
 
-// Cleanup expired sessions (>24h)
-setInterval(() => {
-  const now = Date.now();
-  for (const [id, s] of sessions) {
-    if (now - s.createdAt > 24 * 60 * 60 * 1000) sessions.delete(id);
+let client = null;
+
+async function getClient() {
+  if (!client) {
+    client = createClient({ url: REDIS_URL });
+    client.on('error', err => console.error('Redis error:', err));
+    await client.connect();
   }
-}, 60 * 60 * 1000);
+  return client;
+}
 
-module.exports = { sessions, BOT_SECRET };
+const sessions = {
+  async get(id) {
+    const c = await getClient();
+    const data = await c.get(`session:${id}`);
+    if (!data) return undefined;
+    // Refresh TTL on access
+    await c.expire(`session:${id}`, SESSION_TTL);
+    return JSON.parse(data);
+  },
+
+  async set(id, value) {
+    const c = await getClient();
+    await c.set(`session:${id}`, JSON.stringify(value), { EX: SESSION_TTL });
+  },
+
+  async update(id, fn) {
+    const data = await this.get(id);
+    if (!data) return undefined;
+    const updated = fn(data);
+    await this.set(id, updated);
+    return updated;
+  }
+};
+
+module.exports = { sessions };

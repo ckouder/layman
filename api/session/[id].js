@@ -5,7 +5,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   const { id } = req.query;
-  const session = sessions.get(id);
+  const session = await sessions.get(id);
   if (!session) return res.status(404).json({ error: 'Session not found' });
 
   res.json({

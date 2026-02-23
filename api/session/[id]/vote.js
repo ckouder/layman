@@ -8,7 +8,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { id } = req.query;
-  const session = sessions.get(id);
+  const session = await sessions.get(id);
   if (!session) return res.status(404).json({ error: 'Session not found' });
 
   const { cardId, vote } = req.body || {};
@@ -40,5 +40,6 @@ module.exports = async function handler(req, res) {
     }).catch(err => console.error('Callback failed:', err.message));
   }
 
+  await sessions.set(id, session);
   res.json({ ok: true, currentIndex: session.currentIndex, remaining: unvotedCards.length - 1 });
 };

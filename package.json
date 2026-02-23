@@ -2,5 +2,8 @@
   "name": "layman",
   "version": "1.0.0",
   "description": "A layman UI to handle recommendations from bots",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "redis": "^5.11.0"
+  }
 }
