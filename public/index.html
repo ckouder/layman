@@ -76,7 +76,11 @@
     .pill {
       font-size: 11px; padding: 4px 10px; border-radius: 10px;
       background: var(--positive); color: white; animation: popIn 0.3s ease;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+      transition: opacity 0.15s ease;
     }
+    .pill:active { opacity: 0.6; }
+    .pill::after { content: ' ✕'; font-size: 9px; opacity: 0.7; }
     @keyframes popIn { 0%{transform:scale(0);opacity:0} 50%{transform:scale(1.2)} 100%{transform:scale(1);opacity:1} }
     .complete-screen {
       display: none; flex-direction: column; align-items: center; justify-content: center;
@@ -211,7 +215,11 @@
         const positiveBtn = (session.buttons || []).find(b => b.style === 'positive');
         const positiveValue = positiveBtn ? positiveBtn.value : 'nice';
         for (const [cardId, vote] of Object.entries(session.votes || {})) {
-          if (vote === positiveValue) positiveItems.push(cardId);
+          if (vote === positiveValue) {
+            positiveItems.push(cardId);
+            const card = cards.find(c => c.id === cardId);
+            if (card) addPill(card);
+          }
         }
 
         document.getElementById('app-title').textContent = session.title || 'Recommendations';
@@ -337,6 +345,29 @@
       });
     }
 
+    function addPill(item) {
+      const pills = document.getElementById('selected-pills');
+      const pill = document.createElement('span');
+      pill.className = 'pill';
+      pill.dataset.cardId = item.id;
+      pill.textContent = item.title.length > 20 ? item.title.substring(0,18)+'…' : item.title;
+      pill.addEventListener('click', () => removePill(item.id, pill));
+      pills.appendChild(pill);
+    }
+
+    async function removePill(cardId, pillEl) {
+      positiveItems = positiveItems.filter(id => id !== cardId);
+      pillEl.style.opacity = '0';
+      pillEl.style.transform = 'scale(0)';
+      setTimeout(() => pillEl.remove(), 200);
+      // Update vote on server: re-vote as the negative value
+      if (sessionId) {
+        const negBtn = (session.buttons || []).find(b => b.style === 'negative');
+        const negValue = negBtn ? negBtn.value : 'no';
+        try { await submitVote(cardId, negValue); } catch(e) { console.error('Unvote failed', e); }
+      }
+    }
+
     async function handleChoice(value, style) {
       if (busy) return;
       busy = true;
@@ -345,11 +376,7 @@
 
       if (style === 'positive') {
         positiveItems.push(item.id);
-        const pills = document.getElementById('selected-pills');
-        const pill = document.createElement('span');
-        pill.className = 'pill';
-        pill.textContent = item.title.length > 20 ? item.title.substring(0,18)+'…' : item.title;
-        pills.appendChild(pill);
+        addPill(item);
       }
 
       // Submit vote to API (if session-based)
