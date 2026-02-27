@@ -58,10 +58,7 @@
 
     .todo-reaction-row {
       display: flex; gap: 4px; margin-top: 8px;
-      opacity: 0; max-height: 0; overflow: hidden;
-      transition: all 0.3s ease;
     }
-    .todo-item.done .todo-reaction-row { opacity: 1; max-height: 40px; }
 
     .reaction-btn {
       width: 34px; height: 34px; border-radius: 50%;
@@ -252,7 +249,7 @@
 
     async function setReaction(itemId, reaction) {
       const item = session.items.find(i => i.id === itemId);
-      if (!item.done) return; // Can only react to completed items
+      // Reactions available regardless of done state
 
       // Toggle: click same reaction to clear
       const newReaction = item.reaction === reaction ? null : reaction;
