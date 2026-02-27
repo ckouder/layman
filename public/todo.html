@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Layman — Todo</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #ffffff; --text: #000000; --hint: #999999;
+      --card-bg: #f5f5f5; --positive: #34c759; --negative: #ff3b30;
+      --neutral: #007aff; --shadow: rgba(0,0,0,0.08);
+      --done-bg: #f0faf0;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; padding-bottom: 80px;
+    }
+    .header { padding: 20px 20px 12px; text-align: center; position: sticky; top: 0; background: var(--bg); z-index: 10; }
+    .header h1 { font-size: 22px; font-weight: 700; }
+    .header .subtitle { font-size: 13px; color: var(--hint); margin-top: 4px; }
+
+    .progress-bar { margin: 0 20px 16px; height: 6px; background: var(--card-bg); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--positive); border-radius: 3px; transition: width 0.4s ease; }
+    .progress-text { text-align: center; font-size: 12px; color: var(--hint); margin: -8px 0 12px; }
+
+    .todo-list { padding: 0 16px; }
+
+    .todo-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 14px 16px; margin-bottom: 8px;
+      background: var(--card-bg); border-radius: 16px;
+      transition: all 0.3s ease;
+      box-shadow: 0 1px 4px var(--shadow);
+    }
+    .todo-item.done { background: var(--done-bg); opacity: 0.7; }
+    .todo-item.done .todo-title { text-decoration: line-through; color: var(--hint); }
+
+    .todo-check {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2.5px solid var(--hint); background: transparent;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0; margin-top: 2px;
+      transition: all 0.2s ease; font-size: 14px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .todo-check:active { transform: scale(0.9); }
+    .todo-check.checked {
+      background: var(--positive); border-color: var(--positive); color: white;
+    }
+
+    .todo-content { flex: 1; min-width: 0; }
+    .todo-emoji { font-size: 20px; margin-bottom: 2px; }
+    .todo-title { font-size: 15px; font-weight: 600; line-height: 1.3; }
+    .todo-desc { font-size: 13px; color: var(--hint); margin-top: 2px; line-height: 1.4; }
+
+    .todo-reaction-row {
+      display: flex; gap: 4px; margin-top: 8px;
+      opacity: 0; max-height: 0; overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    .todo-item.done .todo-reaction-row { opacity: 1; max-height: 40px; }
+
+    .reaction-btn {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 2px solid transparent; background: var(--bg);
+      font-size: 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .reaction-btn:active { transform: scale(0.85); }
+    .reaction-btn.selected { border-color: var(--neutral); background: rgba(0,122,255,0.1); transform: scale(1.15); }
+
+    .complete-banner {
+      display: none; text-align: center; padding: 32px 20px;
+    }
+    .complete-banner.active { display: block; }
+    .complete-banner .emoji { font-size: 48px; margin-bottom: 8px; }
+    .complete-banner .text { font-size: 18px; font-weight: 700; }
+    .complete-banner .sub { font-size: 13px; color: var(--hint); margin-top: 4px; }
+
+    .summary-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--bg); border-top: 1px solid var(--card-bg);
+      padding: 12px 20px; display: flex; justify-content: space-between;
+      align-items: center; z-index: 10;
+    }
+    .summary-bar .count { font-size: 14px; font-weight: 600; }
+    .summary-bar .reactions-summary { font-size: 16px; }
+
+    .loading { display: flex; align-items: center; justify-content: center; min-height: 60vh; font-size: 18px; color: var(--hint); }
+    .error-msg { color: var(--negative); text-align: center; padding: 40px 20px; }
+
+    @keyframes checkPop {
+      0% { transform: scale(0.8); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+    .check-animate { animation: checkPop 0.3s ease; }
+  </style>
+</head>
+<body>
+  <div id="app-loading" class="loading">✨ Loading...</div>
+  <div id="app-main" style="display:none;">
+    <div class="header">
+      <h1 id="app-title">To Do</h1>
+      <div class="subtitle" id="app-subtitle"></div>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <div class="progress-text" id="progress-text"></div>
+    <div class="todo-list" id="todo-list"></div>
+    <div id="complete-banner" class="complete-banner">
+      <div class="emoji">🎉</div>
+      <div class="text">All Done!</div>
+      <div class="sub" id="complete-sub"></div>
+    </div>
+    <div class="summary-bar">
+      <span class="count" id="summary-count">0 / 0</span>
+      <span class="reactions-summary" id="summary-reactions"></span>
+    </div>
+  </div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready(); tg.expand();
+      const tp = tg.themeParams;
+      if (tp) {
+        if (tp.bg_color) document.documentElement.style.setProperty('--bg', tp.bg_color);
+        if (tp.text_color) document.documentElement.style.setProperty('--text', tp.text_color);
+        if (tp.hint_color) document.documentElement.style.setProperty('--hint', tp.hint_color);
+        if (tp.secondary_bg_color) document.documentElement.style.setProperty('--card-bg', tp.secondary_bg_color);
+        if (tp.button_color) document.documentElement.style.setProperty('--neutral', tp.button_color);
+      }
+    }
+
+    const API = window.location.origin;
+    let session = null;
+    let sessionId = null;
+    let busy = false;
+
+    function getSessionId() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('s') || params.get('sessionId')
+        || (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param)
+        || null;
+    }
+
+    async function init() {
+      sessionId = getSessionId();
+      if (!sessionId) {
+        document.getElementById('app-loading').innerHTML = '<div class="error-msg">❌ No session ID</div>';
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API}/api/todo/${sessionId}`);
+        if (!res.ok) throw new Error('Session not found');
+        session = await res.json();
+
+        document.getElementById('app-title').textContent = session.title || 'To Do';
+        document.getElementById('app-subtitle').textContent = session.subtitle || '';
+        renderList();
+        updateProgress();
+        document.getElementById('app-loading').style.display = 'none';
+        document.getElementById('app-main').style.display = 'block';
+      } catch (e) {
+        document.getElementById('app-loading').innerHTML = `<div class="error-msg">❌ ${e.message}</div>`;
+      }
+    }
+
+    function renderList() {
+      const list = document.getElementById('todo-list');
+      list.innerHTML = '';
+
+      session.items.forEach(item => {
+        const el = document.createElement('div');
+        el.className = `todo-item${item.done ? ' done' : ''}`;
+        el.id = `item-${item.id}`;
+
+        el.innerHTML = `
+          <button class="todo-check${item.done ? ' checked' : ''}" data-id="${item.id}">
+            ${item.done ? '✓' : ''}
+          </button>
+          <div class="todo-content">
+            <div class="todo-emoji">${item.emoji}</div>
+            <div class="todo-title">${item.title}</div>
+            ${item.description ? `<div class="todo-desc">${item.description}</div>` : ''}
+            <div class="todo-reaction-row">
+              ${(session.reactions || []).map(r =>
+                `<button class="reaction-btn${item.reaction === r ? ' selected' : ''}" data-id="${item.id}" data-reaction="${r}">${r}</button>`
+              ).join('')}
+            </div>
+          </div>
+        `;
+
+        // Toggle done
+        el.querySelector('.todo-check').addEventListener('click', () => toggleDone(item.id));
+
+        // Reaction buttons
+        el.querySelectorAll('.reaction-btn').forEach(btn => {
+          btn.addEventListener('click', () => setReaction(item.id, btn.dataset.reaction));
+        });
+
+        list.appendChild(el);
+      });
+    }
+
+    async function toggleDone(itemId) {
+      if (busy) return;
+      busy = true;
+
+      const item = session.items.find(i => i.id === itemId);
+      const newDone = !item.done;
+
+      // Optimistic update
+      item.done = newDone;
+      item.doneAt = newDone ? Date.now() : null;
+      if (!newDone) item.reaction = null; // Clear reaction if unchecking
+
+      const el = document.getElementById(`item-${itemId}`);
+      const checkBtn = el.querySelector('.todo-check');
+      el.className = `todo-item${newDone ? ' done' : ''}`;
+      checkBtn.className = `todo-check${newDone ? ' checked' : ''} check-animate`;
+      checkBtn.textContent = newDone ? '✓' : '';
+
+      // Re-render reactions if unchecking (to clear selection)
+      if (!newDone) {
+        el.querySelectorAll('.reaction-btn').forEach(b => b.classList.remove('selected'));
+      }
+
+      updateProgress();
+
+      try {
+        await fetch(`${API}/api/todo/${sessionId}/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId, done: newDone }),
+        });
+      } catch (e) { console.error('Update failed', e); }
+
+      busy = false;
+
+      // Check if all done
+      if (session.items.every(i => i.done)) {
+        onAllDone();
+      }
+    }
+
+    async function setReaction(itemId, reaction) {
+      const item = session.items.find(i => i.id === itemId);
+      if (!item.done) return; // Can only react to completed items
+
+      // Toggle: click same reaction to clear
+      const newReaction = item.reaction === reaction ? null : reaction;
+      item.reaction = newReaction;
+
+      // Update UI
+      const el = document.getElementById(`item-${itemId}`);
+      el.querySelectorAll('.reaction-btn').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.reaction === newReaction);
+      });
+      updateProgress();
+
+      try {
+        await fetch(`${API}/api/todo/${sessionId}/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId, reaction: newReaction }),
+        });
+      } catch (e) { console.error('Reaction failed', e); }
+    }
+
+    function updateProgress() {
+      const done = session.items.filter(i => i.done).length;
+      const total = session.items.length;
+      const pct = total > 0 ? (done / total) * 100 : 0;
+
+      document.getElementById('progress-fill').style.width = `${pct}%`;
+      document.getElementById('progress-text').textContent = `${done} / ${total} done`;
+      document.getElementById('summary-count').textContent = `${done} / ${total}`;
+
+      // Show reaction summary
+      const reactions = session.items.filter(i => i.reaction).map(i => i.reaction);
+      document.getElementById('summary-reactions').textContent = reactions.join(' ');
+    }
+
+    function onAllDone() {
+      const banner = document.getElementById('complete-banner');
+      banner.classList.add('active');
+
+      const reactions = session.items.filter(i => i.reaction);
+      const sub = reactions.length > 0
+        ? `Reactions: ${reactions.map(i => `${i.reaction} ${i.title}`).join(', ')}`
+        : 'Great job! 🎊';
+      document.getElementById('complete-sub').textContent = sub;
+
+      // Send result to Telegram
+      if (tg) {
+        try {
+          tg.sendData(JSON.stringify({
+            sessionId,
+            event: 'todo_complete',
+            items: session.items,
+          }));
+        } catch (e) {}
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
