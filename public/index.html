@@ -206,6 +206,15 @@
         return initLegacy();
       }
 
+      // Check if this is a todo session — redirect if so
+      try {
+        const todoCheck = await fetch(`${API}/api/todo/${sessionId}`);
+        if (todoCheck.ok) {
+          window.location.href = `/todo.html?s=${sessionId}`;
+          return;
+        }
+      } catch(e) {}
+
       try {
         session = await fetchSession(sessionId);
         cards = session.cards;
